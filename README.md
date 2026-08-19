@@ -127,3 +127,24 @@ CI runs the same suite on 3.11 (`.github/workflows/ci.yml`).
 ## Disclaimer
 
 This project uses a fictional marketplace and synthetic abuse patterns inspired by publicly discussed e-commerce fraud (brushing, friendly fraud, ATO, affiliate self-dealing). It is not a TikTok internal system, does not use TikTok data, and is not suitable for attacking real platforms.
+
+
+## Cloudflare deployment
+
+The repository includes a Cloudflare-native dashboard and Worker API alongside the full Python analytics project:
+
+- `public/index.html` — deployable analyst dashboard
+- `worker/index.js` — risk telemetry, cases, scoring, rules, and policy APIs
+- `wrangler.jsonc` — Worker and static-assets configuration
+- `package.json` — deterministic Cloudflare build commands
+
+Cloudflare Workers build settings:
+
+```text
+Build command: npm install
+Deploy command: npm run deploy
+Root directory: leave blank
+Production branch: main
+```
+
+Do not set the root directory to `/`. The Python/Streamlit console remains available locally, while the Cloudflare deployment uses the edge-compatible JavaScript dashboard.
