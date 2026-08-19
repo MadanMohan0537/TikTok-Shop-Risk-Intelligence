@@ -1,0 +1,83 @@
+# Enforcement ladder. Actions escalate only when evidence and repeat rates justify
+# the user-experience cost. This is the "balance user experiences" constraint
+# from the GNE / USDS mandate.
+actions:
+  step_up_auth:
+    severity: medium
+    reversible: true
+    ux_cost: low
+    owner: payments_risk
+    sla_minutes: 5
+    description: Challenge the session (OTP / device bind) before capture.
+
+  refund_hold:
+    severity: medium
+    reversible: true
+    ux_cost: medium
+    owner: after_sales
+    sla_minutes: 240
+    description: Pause automatic refunds pending CS review and evidence pack.
+
+  coupon_ban:
+    severity: medium
+    reversible: true
+    ux_cost: medium
+    owner: growth_risk
+    sla_minutes: 60
+    description: Block acquisition coupons; allow full-price checkout.
+
+  review_takedown:
+    severity: medium
+    reversible: true
+    ux_cost: low
+    owner: content_integrity
+    sla_minutes: 720
+    description: Remove inauthentic reviews; freeze rating for 7d.
+
+  payment_block:
+    severity: high
+    reversible: true
+    ux_cost: high
+    owner: payments_risk
+    sla_minutes: 15
+    description: Decline instrument and require re-verification.
+
+  ranking_suppress:
+    severity: medium
+    reversible: true
+    ux_cost: medium
+    owner: discovery
+    sla_minutes: 180
+    description: Suppress livestream / shop from hot ranking slots.
+
+  clawback_commission:
+    severity: high
+    reversible: false
+    ux_cost: medium
+    owner: creator_ops
+    sla_minutes: 1440
+    description: Reverse attributed commission and flag the creator program.
+
+  delist_and_gmv_clawback:
+    severity: high
+    reversible: false
+    ux_cost: high
+    owner: seller_integrity
+    sla_minutes: 720
+    description: Delist offending SKUs and claw inflated GMV from incentives.
+
+  network_hold:
+    severity: critical
+    reversible: false
+    ux_cost: high
+    owner: investigations
+    sla_minutes: 120
+    description: Freeze payouts across the connected shop component.
+
+repeat_escalation:
+  - strikes: 1
+    escalate_to: null
+  - strikes: 2
+    escalate_to: payment_block
+  - strikes: 3
+    escalate_to: network_hold

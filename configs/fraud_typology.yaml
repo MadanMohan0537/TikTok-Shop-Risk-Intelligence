@@ -1,0 +1,126 @@
+# Fraud typology used by rules, case routing, and policy mapping.
+# Each type has investigator-facing signals and a default enforcement ladder.
+typologies:
+  refund_abuse:
+    name: Refund / friendly fraud
+    actor: buyer
+    description: >
+      Serial refunding, keep-the-item claims, and reason-code cycling shortly after
+      confirmed delivery. Distinguishing policy-valid returns from abuse is the UX risk.
+    signals:
+      - refund_rate_28d
+      - hours_to_refund_after_delivery
+      - keep_item_claim_share
+      - reason_code_entropy
+    default_action: refund_hold
+    ux_guardrail: do_not_block_first_time_legitimate_returns
+
+  brushing:
+    name: Brushing / fake GMV
+    actor: seller
+    description: >
+      Sellers inflate GMV, ranking, and social proof with mule buyers, recycled
+      addresses, instant 5-star reviews, and near-zero refunds.
+    signals:
+      - new_buyer_share
+      - shared_device_order_share
+      - review_within_2h_share
+      - address_reuse_degree
+    default_action: delist_and_gmv_clawback
+    ux_guardrail: protect_organic_rank_of_honest_sellers
+
+  promo_abuse:
+    name: Coupon / promo stacking
+    actor: buyer
+    description: >
+      New or recycled accounts burning acquisition coupons, stacking codes, and
+      churning before contribution margin turns positive.
+    signals:
+      - discount_ratio
+      - account_age_hours
+      - unique_coupon_families
+      - device_reuse_across_new_accounts
+    default_action: coupon_ban
+    ux_guardrail: keep_new-user coupons working for real first orders
+
+  review_manipulation:
+    name: Review / rating manipulation
+    actor: seller
+    description: >
+      Burst 5-star reviews from thin accounts, templated text, and incentivized
+      creator shout-outs disconnected from verified purchase quality.
+    signals:
+      - review_velocity_24h
+      - text_template_ratio
+      - unverified_review_share
+      - rating_entropy
+    default_action: review_takedown
+    ux_guardrail: do_not_hide_authentic_critical_reviews
+
+  seller_collusion:
+    name: Seller collusion / mule network
+    actor: network
+    description: >
+      Clusters of shops sharing devices, payout instruments, warehouses, or
+      circular order flow — often a precursor to coordinated policy evasion.
+    signals:
+      - shared_device_component_size
+      - shared_payout_component_size
+      - circular_order_flag
+    default_action: network_hold
+    ux_guardrail: isolate true multi-shop brands from mule farms
+
+  ato:
+    name: Account takeover
+    actor: buyer
+    description: >
+      Credential stuffing or session hijack on a trusted account, followed by
+      high-AOV orders to a new shipping destination on a new device.
+    signals:
+      - geo_hop_km
+      - new_device_flag
+      - new_ship_to_flag
+      - velocity_1h
+    default_action: step_up_auth
+    ux_guardrail: challenge instead of hard-decline loyal customers
+
+  payment_fraud:
+    name: Payment / stolen instrument
+    actor: buyer
+    description: >
+      High-velocity attempts, AVS mismatches, BIN/geo inconsistency, and
+      card-testing patterns before a successful capture.
+    signals:
+      - auth_fail_velocity
+      - avs_mismatch
+      - bin_country_mismatch
+      - instrument_age_minutes
+    default_action: payment_block
+    ux_guardrail: avoid punishing travelers and gift-shippers
+
+  affiliate_fraud:
+    name: Affiliate / creator attribution fraud
+    actor: creator
+    description: >
+      Click inflation, self-purchase loops, and cookie stuffing that steal
+      attribution from organic or other creators.
+    signals:
+      - click_to_order_ratio
+      - self_purchase_flag
+      - click_device_concentration
+      - attribution_hijack_window
+    default_action: clawback_commission
+    ux_guardrail: do_not_starve_legitimate_mid-tier creators
+
+  livestream_fraud:
+    name: Livestream engagement / traffic fraud
+    actor: creator
+    description: >
+      Inorganic viewer and gift spikes used to game discovery ranking and
+      seed downstream brushing of featured SKUs.
+    signals:
+      - viewer_spike_zscore
+      - gift_to_unique_payer_ratio
+      - featured_sku_brushing_overlap
+    default_action: ranking_suppress
+    ux_guardrail: preserve real flash-sale spikes
