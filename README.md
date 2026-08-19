@@ -1,87 +1,120 @@
-# ShopGuard — TikTok Shop Risk Intelligence Portfolio Project
+# Shop Risk Intelligence
 
-An end-to-end marketplace fraud monitoring, investigation, and policy-simulation platform designed around the responsibilities of a TikTok Shop Risk Control analyst. This is an **independent portfolio project** built with synthetic data and is not affiliated with or endorsed by TikTok or ByteDance.
+Marketplace fraud detection, investigation, and policy simulation for a **TikTok Shop–style** e-commerce ecosystem.
 
-## What it demonstrates
+Independent portfolio project for the **Anti-Fraud Analyst, TikTok Shop USDS (GNE / Risk Control)** role. Built with **synthetic data**. Not affiliated with, or endorsed by, TikTok or ByteDance.
 
-- SQL-driven marketplace monitoring and quantitative analysis
-- Transparent, versioned anti-fraud controls
-- Detection of payment abuse, promotion abuse, account takeover, refund abuse, and seller collusion
-- Shared-device fraud-ring discovery
-- Prioritized investigation case queues
-- Policy simulation that balances fraud capture against false positives
-- Reproducible synthetic data, REST APIs, tests, and dashboards
+The USDS Risk Control brief is to fight fraud with insight generation, scaled enforcement, automation, and prevention — while the business still complies with US rules and does not torch honest buyers, sellers, or creators. This repo is that loop in miniature:
+
+1. Query a warehouse (DuckDB, MySQL-shaped SQL).
+2. Materialize entity features.
+3. Score versioned YAML rules.
+4. Open investigation packets with UX guardrails.
+5. Measure precision / recall / GMV on a labeled holdout.
+6. Sandbox a stricter threshold before you ship it to ops.
+
+## What it maps to on the job
+
+| Job responsibility | In this repo |
+| --- | --- |
+| Query databases and pull investigation insights | `sql/*.sql` feature marts + `shop-risk investigate` |
+| RCA on emerging trends | `docs/rca_refund_abuse.md`, LLM RCA prompt in `investigation/prompts.py` |
+| Maintain enforcement rules and policy | `configs/rules.yaml`, `configs/enforcement.yaml`, `configs/fraud_typology.yaml` |
+| Abnormal behavior → rules / models / strategies | Rule engine + injected cohorts in `data/simulate.py` |
+| Track progress with key metrics | `shop-risk evaluate`, Streamlit dashboard |
+| SOPs for scaled manual review | `docs/sop_manual_review.md` |
+| LLM prompt / agent work (preferred) | `src/shop_risk/investigation/prompts.py` + offline briefings |
+| Python (preferred) | CLI, simulator, evaluator, tests |
+
+Fraud types covered: **refund abuse, brushing / fake GMV, promo stacking, review manipulation, seller collusion, account takeover, payment fraud, affiliate self-loops, livestream ranking fraud**.
 
 ## Architecture
 
 ```mermaid
-flowchart TD
-    A[Synthetic marketplace events] --> B[SQLite event store]
-    B --> C[SQL telemetry]
-    B --> D[Versioned rule engine]
-    D --> E[Risk decisions]
+flowchart LR
+    A[Synthetic marketplace] --> B[DuckDB warehouse]
+    B --> C[SQL feature marts]
+    C --> D[YAML rule pack]
+    D --> E[Hits + enforcement ladder]
     E --> F[Investigation queue]
-    B --> G[Shared-device clusters]
-    E --> H[Policy simulator]
-    C --> I[Analyst dashboard]
+    E --> G[Precision / recall vs labels]
+    G --> H[Policy score sandbox]
+    F --> I[Analyst memo / LLM prompt]
+    B --> J[Streamlit console]
 ```
+
+Markets in `configs/markets.yaml` carry different risk priors (US/UK lean user-experience; ID/TH lean scaled prevention) — the same tension GNE has between trust and growth.
 
 ## Quick start
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+source .venv/bin/activate
+pip install -e ".[dev]"
+
+shop-risk run --demo
+shop-risk dashboard
 ```
 
-In a second terminal:
+`run --demo` generates a smaller labeled marketplace, builds features, scores rules, prints holdout metrics, a policy curve, and the top investigation briefs.
+
+Useful commands:
 
 ```bash
-streamlit run dashboard.py
+shop-risk generate --seed 42          # full-size synthetic window
+shop-risk features                    # rebuild buyer/seller/creator/order marts
+shop-risk score                       # execute configs/rules.yaml
+shop-risk evaluate                    # precision, recall, GMV on hit orders
+shop-risk policy                      # what if we only enforce score >= 0.7?
+shop-risk investigate --top 5
+shop-risk investigate --prompt        # LLM-ready case brief
+pytest -q
 ```
 
-- API documentation: http://localhost:8000/docs
-- Analyst dashboard: http://localhost:8501
+## Rule pack
 
-The database is initialized automatically with 500 deterministic synthetic orders.
+Rules are SQL over the feature mart, not a black-box score. Each row in `configs/rules.yaml` has a typology, severity, enforcement action, weight, rationale, and a query that returns `entity_id`, `score`, and `evidence`.
 
-## API endpoints
+Examples:
 
-| Endpoint | Purpose |
-|---|---|
-| `POST /score` | Explainable real-time order risk score |
-| `GET /analytics/overview` | Core fraud and enforcement KPIs |
-| `GET /analytics/trends` | Daily marketplace telemetry |
-| `GET /analytics/rules` | Rule-hit monitoring |
-| `GET /cases` | Prioritized investigations |
-| `GET /rings` | Coordinated shared-device candidates |
-| `GET /policy/simulate` | Threshold impact analysis |
+- `REFUND_SERIAL_28D` — repeat keep-item refunds inside 36 hours of delivery
+- `BRUSH_NEW_BUYER_REVIEW` — thin buyers + instant five-star reviews
+- `ATO_GEO_DEVICE_VELOCITY` — trusted account, new device, far ship-to, compressed velocity
+- `NETWORK_SHARED_DEVICE` — mule-device / shared-payout shop components
+- `AFFILIATE_SELF_LOOP` — creator-device self-purchase + click concentration
 
-## Example risk evaluation
+Enforcement is a ladder (`step_up_auth` → holds → blocks → network freeze) with an **UX cost** and SLA so the first-time legitimate return does not get the same treatment as a mule farm.
 
-```bash
-curl -X POST http://localhost:8000/score -H "Content-Type: application/json" -d '{
-  "amount": 799,
-  "account_age_days": 2,
-  "device_account_count": 8,
-  "orders_last_hour": 6,
-  "promo_uses_24h": 4,
-  "home_state": "CA",
-  "transaction_state": "NY",
-  "distance_miles": 2445,
-  "seller_refund_rate": 0.38,
-  "failed_payments": 4
-}'
+## Investigation workflow
+
+`shop-risk investigate` collapses hits into a case packet: entity, market, evidence, related 28d features, recommended action, and the typology's UX guardrail. It writes a deterministic analyst memo (no API key required) and can emit the **same slots as an LLM prompt** so you can drop it into an agent.
+
+That is the preferred qualification — prompt contracts for case briefs, RCA, policy one-pagers, and ops SOPs live in `src/shop_risk/investigation/prompts.py`.
+
+## Metrics
+
+Synthetic labels are injected with the fraud cohorts. `shop-risk evaluate` reports precision / recall / F1 overall and by typology. Treat them as a **holdout for the rule pack**, not as production model performance.
+
+The Streamlit console also shows market GMV, refund rate, rule-hit mix, the investigation queue, and a score-threshold sandbox (precision vs recall vs volume).
+
+## Repo layout
+
+```
+configs/          typology, markets, rules, enforcement ladder
+sql/              DuckDB feature pipelines (buyer, seller, creator, order, KPIs)
+src/shop_risk/    simulator, warehouse, rules, investigation, CLI
+dashboards/       Streamlit analyst console
+docs/             SOP, playbook, worked RCA
+tests/            pytest against a seeded demo warehouse
 ```
 
-## Governance choices
+## Design choices
 
-- Every decision contains specific rule evidence.
-- Synthetic fraud labels are never represented as production outcomes.
-- Policies can be simulated before enforcement.
-- The dashboard exposes false positives alongside fraud capture.
-- The system is a decision-support prototype, not an autonomous production blocker.
+- **SQL is the source of truth** for features and rules, matching how an analyst actually ships detection.
+- **False positives are first-class.** Every typology has a UX guardrail; US/UK configs bias toward experience.
+- **Labels never leave the `labels` table.** The dashboard and README do not pretend synthetic flags are production outcomes.
+- **No live LLM call in CI.** Prompts are versioned; briefs are deterministic so the pipeline stays reproducible.
+- **USDS-shaped compliance note:** ATO and stolen-instrument paths prefer step-up / payment block over silent account seizure.
 
 ## Testing
 
@@ -89,11 +122,8 @@ curl -X POST http://localhost:8000/score -H "Content-Type: application/json" -d 
 pytest -q
 ```
 
-## Roadmap
+CI runs the same suite on 3.11 (`.github/workflows/ci.yml`).
 
-- PostgreSQL and dbt warehouse models
-- Buyer–seller–device graph visualization with NetworkX
-- Analyst case disposition and enforcement audit trail
-- Model drift and rule precision monitoring
-- Market-level access controls and policy version history
+## Disclaimer
 
+This project uses a fictional marketplace and synthetic abuse patterns inspired by publicly discussed e-commerce fraud (brushing, friendly fraud, ATO, affiliate self-dealing). It is not a TikTok internal system, does not use TikTok data, and is not suitable for attacking real platforms.

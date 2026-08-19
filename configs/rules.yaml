@@ -1,0 +1,210 @@
+# Production-shaped rule pack. Each rule is SQL-scored against the feature mart.
+# Thresholds are intentionally conservative so precision stays interview-credible
+# on the synthetic holdout (see `shop-risk evaluate`).
+rules:
+  - id: REFUND_SERIAL_28D
+    typology: refund_abuse
+    entity: buyer
+    severity: high
+    action: refund_hold
+    weight: 0.85
+    rationale: Repeat refunders with keep-item claims shortly after delivery.
+    sql: |
+      SELECT
+        buyer_id AS entity_id,
+        LEAST(1.0, refund_rate_28d * 1.2 + keep_item_share * 0.4) AS score,
+        {
+          'refund_rate_28d': refund_rate_28d,
+          'refunds_28d': refunds_28d,
+          'keep_item_share': keep_item_share,
+          'median_hours_to_refund': median_hours_to_refund
+        } AS evidence
+      FROM buyer_features
+      WHERE orders_28d >= 4
+        AND refunds_28d >= 3
+        AND refund_rate_28d >= 0.55
+        AND keep_item_share >= 0.4
+        AND median_hours_to_refund <= 36
+
+  - id: BRUSH_NEW_BUYER_REVIEW
+    typology: brushing
+    entity: seller
+    severity: high
+    action: delist_and_gmv_clawback
+    weight: 0.9
+    rationale: Ranking inflation via thin buyers and instant five-star reviews.
+    sql: |
+      SELECT
+        seller_id AS entity_id,
+        LEAST(1.0, new_buyer_share * 0.5 + review_within_2h_share * 0.4
+                   + shared_device_order_share * 0.3) AS score,
+        {
+          'new_buyer_share': new_buyer_share,
+          'review_within_2h_share': review_within_2h_share,
+          'shared_device_order_share': shared_device_order_share,
+          'gmv_28d': gmv_28d
+        } AS evidence
+      FROM seller_features
+      WHERE orders_28d >= 12
+        AND new_buyer_share >= 0.65
+        AND review_within_2h_share >= 0.45
+        AND refund_rate_28d <= 0.05
+
+  - id: PROMO_NEW_ACCOUNT_STACK
+    typology: promo_abuse
+    entity: buyer
+    severity: medium
+    action: coupon_ban
+    weight: 0.7
+    rationale: New accounts extracting stacked acquisition discounts.
+    sql: |
+      SELECT
+        buyer_id AS entity_id,
+        LEAST(1.0, discount_ratio * 0.7 + coupon_family_n * 0.08) AS score,
+        {
+          'discount_ratio': discount_ratio,
+          'coupon_family_n': coupon_family_n,
+          'account_age_hours_at_first_order': account_age_hours_at_first_order,
+          'device_linked_new_accounts': device_linked_new_accounts
+        } AS evidence
+      FROM buyer_features
+      WHERE account_age_hours_at_first_order <= 12
+        AND discount_ratio >= 0.45
+        AND coupon_family_n >= 2
+        AND orders_28d >= 2
+
+  - id: REVIEW_BURST_TEMPLATE
+    typology: review_manipulation
+    entity: seller
+    severity: medium
+    action: review_takedown
+    weight: 0.75
+    rationale: 24h rating bursts with low text diversity.
+    sql: |
+      SELECT
+        seller_id AS entity_id,
+        LEAST(1.0, review_velocity_24h / 40.0 + template_review_share * 0.6) AS score,
+        {
+          'review_velocity_24h': review_velocity_24h,
+          'template_review_share': template_review_share,
+          'avg_rating': avg_rating,
+          'unverified_review_share': unverified_review_share
+        } AS evidence
+      FROM seller_features
+      WHERE review_velocity_24h >= 18
+        AND template_review_share >= 0.5
+        AND avg_rating >= 4.7
+
+  - id: NETWORK_SHARED_DEVICE
+    typology: seller_collusion
+    entity: seller
+    severity: critical
+    action: network_hold
+    weight: 1.0
+    rationale: Multi-shop device or payout overlap indicative of mule farms.
+    sql: |
+      SELECT
+        seller_id AS entity_id,
+        LEAST(1.0, 0.4 + shared_device_peers * 0.08 + shared_payout_peers * 0.1) AS score,
+        {
+          'shared_device_peers': shared_device_peers,
+          'shared_payout_peers': shared_payout_peers,
+          'component_size': component_size
+        } AS evidence
+      FROM seller_features
+      WHERE shared_payout_peers >= 2
+         OR (shared_device_peers >= 3 AND shared_payout_peers >= 1)
+
+  - id: ATO_GEO_DEVICE_VELOCITY
+    typology: ato
+    entity: order
+    severity: critical
+    action: step_up_auth
+    weight: 0.95
+    rationale: Trusted account, new device + far ship-to, compressed velocity.
+    sql: |
+      SELECT
+        order_id AS entity_id,
+        LEAST(1.0, 0.35 + new_device_flag * 0.25 + new_ship_to_flag * 0.2
+                   + LEAST(geo_hop_km / 4000.0, 0.3)) AS score,
+        {
+          'buyer_id': buyer_id,
+          'geo_hop_km': geo_hop_km,
+          'new_device_flag': new_device_flag,
+          'new_ship_to_flag': new_ship_to_flag,
+          'aov': gmv,
+          'velocity_1h': velocity_1h
+        } AS evidence
+      FROM order_features
+      WHERE account_age_days >= 60
+        AND new_device_flag = 1
+        AND new_ship_to_flag = 1
+        AND geo_hop_km >= 800
+        AND gmv >= 80
+        AND velocity_1h >= 2
+
+  - id: PAY_VELOCITY_AVS
+    typology: payment_fraud
+    entity: order
+    severity: high
+    action: payment_block
+    weight: 0.88
+    rationale: Card-testing residue plus AVS/BIN mismatch on capture.
+    sql: |
+      SELECT
+        order_id AS entity_id,
+        LEAST(1.0, 0.3 + auth_fail_1h * 0.08 + avs_mismatch * 0.25
+                   + bin_country_mismatch * 0.2) AS score,
+        {
+          'auth_fail_1h': auth_fail_1h,
+          'avs_mismatch': avs_mismatch,
+          'bin_country_mismatch': bin_country_mismatch,
+          'instrument_age_minutes': instrument_age_minutes
+        } AS evidence
+      FROM order_features
+      WHERE auth_fail_1h >= 3
+        AND (avs_mismatch = 1 OR bin_country_mismatch = 1)
+        AND instrument_age_minutes <= 180
+
+  - id: AFFILIATE_SELF_LOOP
+    typology: affiliate_fraud
+    entity: creator
+    severity: high
+    action: clawback_commission
+    weight: 0.8
+    rationale: Self-purchase and click-farm concentration on attribution.
+    sql: |
+      SELECT
+        creator_id AS entity_id,
+        LEAST(1.0, self_purchase_share * 0.6 + click_device_hhi * 0.5) AS score,
+        {
+          'self_purchase_share': self_purchase_share,
+          'click_device_hhi': click_device_hhi,
+          'click_to_order_ratio': click_to_order_ratio,
+          'commission_28d': commission_28d
+        } AS evidence
+      FROM creator_features
+      WHERE attributed_orders_28d >= 8
+        AND (self_purchase_share >= 0.25 OR click_device_hhi >= 0.55)
+        AND click_to_order_ratio >= 25
+
+  - id: LIVE_SPIKE_BRUSH_OVERLAP
+    typology: livestream_fraud
+    entity: creator
+    severity: medium
+    action: ranking_suppress
+    weight: 0.65
+    rationale: Inorganic viewer spikes that coincide with featured-SKU brushing.
+    sql: |
+      SELECT
+        creator_id AS entity_id,
+        LEAST(1.0, viewer_spike_z / 8.0 + featured_brush_overlap * 0.5) AS score,
+        {
+          'viewer_spike_z': viewer_spike_z,
+          'gift_to_unique_payer_ratio': gift_to_unique_payer_ratio,
+          'featured_brush_overlap': featured_brush_overlap
+        } AS evidence
+      FROM creator_features
+      WHERE viewer_spike_z >= 3.5
+        AND gift_to_unique_payer_ratio >= 6
+        AND featured_brush_overlap >= 0.3

@@ -1,7 +1,31 @@
+# Python
 __pycache__/
-.pytest_cache/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
 .venv/
-*.pyc
-*.db
+venv/
 .env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
+# Data products (regenerate locally)
+data/raw/
+data/warehouse/
+data/exports/
+*.duckdb
+*.duckdb.wal
+
+# Notebooks / OS
+.ipynb_checkpoints/
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/

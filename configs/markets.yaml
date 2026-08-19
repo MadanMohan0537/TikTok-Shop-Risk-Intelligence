@@ -1,0 +1,53 @@
+# TikTok Shop-style market telemetry priors.
+# Mixes are illustrative (synthetic) — used to generate geographically distinct fraud pressure.
+as_of: "2026-08-18"
+markets:
+  US:
+    name: United States
+    currency: USD
+    gmv_share: 0.34
+    trust_priority: high
+    dominant_risks: [ato, payment_fraud, refund_abuse]
+    enforcement_bias: user_experience  # mature market, false positives are costly
+  UK:
+    name: United Kingdom
+    currency: GBP
+    gmv_share: 0.12
+    trust_priority: high
+    dominant_risks: [refund_abuse, review_manipulation]
+    enforcement_bias: user_experience
+  ID:
+    name: Indonesia
+    currency: IDR
+    gmv_share: 0.22
+    trust_priority: high
+    dominant_risks: [brushing, promo_abuse, affiliate_fraud]
+    enforcement_bias: scaled_prevention
+  TH:
+    name: Thailand
+    currency: THB
+    gmv_share: 0.10
+    trust_priority: medium
+    dominant_risks: [brushing, livestream_fraud]
+    enforcement_bias: scaled_prevention
+  VN:
+    name: Vietnam
+    currency: VND
+    gmv_share: 0.09
+    trust_priority: medium
+    dominant_risks: [promo_abuse, seller_collusion]
+    enforcement_bias: scaled_prevention
+  MY:
+    name: Malaysia
+    currency: MYR
+    gmv_share: 0.07
+    trust_priority: medium
+    dominant_risks: [review_manipulation, refund_abuse]
+    enforcement_bias: balanced
+  PH:
+    name: Philippines
+    currency: PHP
+    gmv_share: 0.06
+    trust_priority: medium
+    dominant_risks: [affiliate_fraud, promo_abuse]
+    enforcement_bias: balanced

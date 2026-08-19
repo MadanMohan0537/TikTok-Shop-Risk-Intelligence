@@ -1,31 +1,42 @@
-from app.rules import decision, score_order
+from shop_risk.rules.engine import hits_frame
+from shop_risk.rules.evaluate import evaluate, threshold_curve
 
 
-def base_order():
-    return {"amount": 50, "account_age_days": 365, "device_account_count": 1,
-            "orders_last_hour": 1, "promo_uses_24h": 0, "home_state": "CA",
-            "transaction_state": "CA", "distance_miles": 10,
-            "seller_refund_rate": .05, "failed_payments": 0}
+def test_every_typology_has_a_hit(hits):
+    found = {h.typology for h in hits}
+    expected = {
+        "refund_abuse",
+        "brushing",
+        "promo_abuse",
+        "review_manipulation",
+        "seller_collusion",
+        "ato",
+        "payment_fraud",
+        "affiliate_fraud",
+        "livestream_fraud",
+    }
+    missing = expected - found
+    assert not missing, f"rules did not fire for {missing}"
 
 
-def test_legitimate_order_is_approved():
-    result = score_order(base_order())
-    assert result["risk_score"] == 0
-    assert result["decision"] == "APPROVE"
+def test_hits_are_scored(hits):
+    assert hits
+    frame = hits_frame(hits)
+    assert frame["score"].between(0, 1.0001).all()
+    assert set(frame["severity"]).issubset({"low", "medium", "high", "critical"})
 
 
-def test_coordinated_abuse_is_blocked_and_explainable():
-    order = base_order()
-    order.update(amount=900, account_age_days=2, device_account_count=8,
-                 orders_last_hour=6, promo_uses_24h=5, failed_payments=4)
-    result = score_order(order)
-    assert result["decision"] == "BLOCK"
-    assert len(result["rule_hits"]) >= 4
-    assert all("evidence" in hit for hit in result["rule_hits"])
+def test_precision_recall_are_interview_credible(con, hits):
+    ev = evaluate(con, hits)
+    assert ev.overall_precision >= 0.75
+    assert ev.overall_recall >= 0.55
+    assert ev.true_positives >= 20
+    # No typology should be a complete miss on the injected holdout.
+    for row in ev.by_typology:
+        assert row.recall >= 0.4, row
 
 
-def test_decision_thresholds():
-    assert decision(39) == "APPROVE"
-    assert decision(40) == "MANUAL_REVIEW"
-    assert decision(70) == "BLOCK"
-
+def test_policy_curve_monotone_enforced(con, hits):
+    curve = threshold_curve(con, hits)
+    enforced = list(curve["enforced"])
+    assert enforced == sorted(enforced, reverse=True)

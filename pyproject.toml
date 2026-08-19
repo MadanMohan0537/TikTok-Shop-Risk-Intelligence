@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shop-risk"
+version = "0.1.0"
+description = "Marketplace risk intelligence: fraud telemetry, SQL feature pipelines, rules, and investigation workflows."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Madan Mohan Ch" }]
+dependencies = [
+  "duckdb>=1.1.0",
+  "pandas>=2.2.0",
+  "numpy>=1.26.0",
+  "pyyaml>=6.0.1",
+  "pyarrow>=15.0.0",
+  "plotly>=5.22.0",
+  "streamlit>=1.36.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.2.0", "ruff>=0.5.0"]
+
+[project.scripts]
+shop-risk = "shop_risk.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+shop_risk = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+ignore = ["DTZ001"]
