@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Shop Risk Intelligence</title>
+  <style>
+    :root{--bg:#f5f7fb;--card:#fff;--ink:#172033;--muted:#667085;--red:#ee1d52;--blue:#3157d5;--line:#e6e9f0}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px Inter,system-ui,sans-serif}header{background:#101828;color:#fff;padding:22px max(24px,calc((100% - 1180px)/2));display:flex;justify-content:space-between;align-items:center}header h1{font-size:20px;margin:0}.badge{background:#25324a;padding:7px 11px;border-radius:18px;color:#cdd5e3}.wrap{max-width:1180px;margin:26px auto;padding:0 20px}.notice{background:#fff4e5;border:1px solid #ffd59a;padding:12px 16px;border-radius:10px;color:#854d0e}.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin:18px 0}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:0 2px 8px #1018280a}.label{color:var(--muted);font-size:12px}.value{font-size:25px;font-weight:750;margin-top:7px}.grid{display:grid;grid-template-columns:2fr 1fr;gap:18px}h2{font-size:17px;margin:0 0 14px}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line);font-size:12px}th{color:var(--muted)}.pill{padding:4px 8px;border-radius:12px;background:#fff0f3;color:#c81042}.control{width:100%;accent-color:var(--red)}.policy strong{font-size:22px}footer{text-align:center;color:var(--muted);padding:30px}@media(max-width:850px){.metrics{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}header{align-items:flex-start;gap:10px;flex-direction:column}}
+  </style>
+</head>
+<body>
+<header><h1>🛡️ Shop Risk Intelligence</h1><span class="badge">Cloudflare Worker · Live</span></header>
+<main class="wrap">
+  <div class="notice">Independent portfolio project using synthetic TikTok Shop–style marketplace data. Not affiliated with TikTok or ByteDance.</div>
+  <section class="metrics" id="metrics"></section>
+  <section class="grid">
+    <div class="card"><h2>Prioritized investigation queue</h2><div style="overflow:auto"><table><thead><tr><th>Case</th><th>Entity</th><th>Market</th><th>Typology</th><th>Score</th><th>Action</th></tr></thead><tbody id="cases"></tbody></table></div></div>
+    <div class="card policy"><h2>Policy threshold sandbox</h2><p class="label">Raise the threshold to reduce review volume and user friction; lower it to capture more suspicious activity.</p><input class="control" id="threshold" type="range" min="30" max="95" value="70"><p>Threshold: <strong id="thresholdValue">70</strong></p><div id="policy"></div></div>
+  </section>
+</main>
+<footer>SQL-first rule pack · Investigation workflows · Synthetic evaluation metrics</footer>
+<script>
+const money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(n)
+async function load(){const [o,c]=await Promise.all([fetch('/api/overview').then(r=>r.json()),fetch('/api/cases').then(r=>r.json())]);const items=[['Orders (28d)',o.orders_28d.toLocaleString()],['GMV (28d)',money(o.gmv_28d)],['Rule hits',o.rule_hits.toLocaleString()],['Open cases',o.open_cases],['GMV at risk',money(o.gmv_at_risk)]];metrics.innerHTML=items.map(x=>`<div class="card"><div class="label">${x[0]}</div><div class="value">${x[1]}</div></div>`).join('');cases.innerHTML=c.slice(0,15).map(x=>`<tr><td>${x.case_id}</td><td>${x.entity_id}</td><td>${x.market}</td><td>${x.fraud_type}</td><td><span class="pill">${x.risk_score}</span></td><td>${x.action}</td></tr>`).join('');updatePolicy()}
+async function updatePolicy(){const t=threshold.value;thresholdValue.textContent=t;const p=await fetch('/api/policy?threshold='+t).then(r=>r.json());policy.innerHTML=`<p><span class="label">Cases sent to enforcement</span><br><strong>${p.enforcement_volume}</strong></p><p><span class="label">GMV reviewed</span><br><strong>${money(p.gmv_reviewed)}</strong></p><p>Precision ${(p.estimated_precision*100).toFixed(1)}% · Recall ${(p.estimated_recall*100).toFixed(1)}%</p>`}
+threshold.addEventListener('input',updatePolicy);load().catch(e=>document.body.innerHTML+='<p>Unable to load dashboard.</p>')
+</script>
+</body></html>
+
