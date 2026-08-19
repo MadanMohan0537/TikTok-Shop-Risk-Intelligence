@@ -1,166 +1,230 @@
-# Shop Risk Intelligence
+# 🛡️ Shop Risk Intelligence
 
-Marketplace fraud detection, investigation, and policy simulation for a **TikTok Shop–style** e-commerce ecosystem.
+<p align="center">
+  <strong>Marketplace fraud monitoring, investigation, enforcement, and policy simulation for a TikTok Shop–style ecosystem.</strong>
+</p>
 
-Independent portfolio project for the **Anti-Fraud Analyst, TikTok Shop USDS (GNE / Risk Control)** role. Built with **synthetic data**. Not affiliated with, or endorsed by, TikTok or ByteDance.
+<p align="center">
+  <a href="https://tiktok-shop-risk-intelligence.madanmohanlearning.workers.dev/"><img src="https://img.shields.io/badge/Live%20Demo-Cloudflare%20Workers-F38020?style=for-the-badge&logo=cloudflare&logoColor=white" alt="Live demo"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+"></a>
+  <a href="https://duckdb.org/"><img src="https://img.shields.io/badge/Analytics-DuckDB-FFF000?style=for-the-badge&logo=duckdb&logoColor=black" alt="DuckDB"></a>
+  <a href="https://developers.cloudflare.com/workers/"><img src="https://img.shields.io/badge/Runtime-Cloudflare%20Workers-F38020?style=for-the-badge&logo=cloudflare&logoColor=white" alt="Cloudflare Workers"></a>
+</p>
 
-The USDS Risk Control brief is to fight fraud with insight generation, scaled enforcement, automation, and prevention — while the business still complies with US rules and does not torch honest buyers, sellers, or creators. This repo is that loop in miniature:
+<p align="center">
+  <strong>🌐 <a href="https://tiktok-shop-risk-intelligence.madanmohanlearning.workers.dev/">Open the live risk-intelligence dashboard</a></strong>
+</p>
 
-1. Query a warehouse (DuckDB, MySQL-shaped SQL).
-2. Materialize entity features.
-3. Score versioned YAML rules.
-4. Open investigation packets with UX guardrails.
-5. Measure precision / recall / GMV on a labeled holdout.
-6. Sandbox a stricter threshold before you ship it to ops.
+---
 
-## What it maps to on the job
+## Overview
 
-| Job responsibility | In this repo |
-| --- | --- |
-| Query databases and pull investigation insights | `sql/*.sql` feature marts + `shop-risk investigate` |
-| RCA on emerging trends | `docs/rca_refund_abuse.md`, LLM RCA prompt in `investigation/prompts.py` |
-| Maintain enforcement rules and policy | `configs/rules.yaml`, `configs/enforcement.yaml`, `configs/fraud_typology.yaml` |
-| Abnormal behavior → rules / models / strategies | Rule engine + injected cohorts in `data/simulate.py` |
-| Track progress with key metrics | `shop-risk evaluate`, Streamlit dashboard |
-| SOPs for scaled manual review | `docs/sop_manual_review.md` |
-| LLM prompt / agent work (preferred) | `src/shop_risk/investigation/prompts.py` + offline briefings |
-| Python (preferred) | CLI, simulator, evaluator, tests |
+Shop Risk Intelligence is an end-to-end portfolio project designed around the work of an e-commerce Risk Control and Anti-Fraud team. It turns marketplace activity into SQL features, transparent rule hits, investigation cases, enforcement recommendations, monitoring metrics, and policy-impact simulations.
 
-Fraud types covered: **refund abuse, brushing / fake GMV, promo stacking, review manipulation, seller collusion, account takeover, payment fraud, affiliate self-loops, livestream ranking fraud**.
+The project includes two complementary applications:
+
+1. **Cloudflare application:** a globally deployed analyst dashboard and Worker API for risk telemetry, case prioritization, rules, scoring, policy simulation, and private CSV/JSON analysis.
+2. **Python analytics platform:** a reproducible DuckDB pipeline that generates synthetic marketplace activity, materializes buyer/seller/creator/order features, runs versioned YAML rules, evaluates detection quality, and produces investigation briefs.
+
+All included data is synthetic. This project is independent and is not affiliated with or endorsed by TikTok or ByteDance.
+
+## Live application
+
+**Deployment:** [tiktok-shop-risk-intelligence.madanmohanlearning.workers.dev](https://tiktok-shop-risk-intelligence.madanmohanlearning.workers.dev/)
+
+The deployed dashboard provides:
+
+- Marketplace order, GMV, rule-hit, open-case, and GMV-at-risk metrics
+- A risk-ranked investigation queue
+- Fraud typology, market, severity, and recommended-action context
+- A policy threshold sandbox showing enforcement volume and value reviewed
+- CSV and JSON upload for analyzing private datasets locally in the browser
+- A downloadable input template
+- Cloudflare Worker APIs for dashboard data and custom scoring
+
+## Analyze your own data
+
+Select **Upload data** in the live dashboard and choose a CSV or JSON file.
+
+Privacy characteristics:
+
+- Analysis executes entirely inside the browser.
+- Uploaded data is not posted to the Worker.
+- Files are not persisted, logged, or shared with an external service.
+- Displayed values are escaped before being added to the dashboard.
+- Uploads are limited to 5 MB and 10,000 rows.
+
+Supported JSON formats are a top-level array or an object containing `records`, `orders`, `cases`, or `data`.
+
+Common supported fields:
+
+```text
+order_id, entity_id, buyer_id, seller_id, market,
+amount, gmv, risk_score, fraud_type, typology,
+status, action, refund_rate_28d, refunds_28d,
+shared_device_peers, new_device, distance_miles,
+velocity_1h, auth_fail_1h, avs_mismatch
+```
+
+When `risk_score` is unavailable, the browser applies transparent rules to the available behavioral signals. Precision and recall are not fabricated for uploaded data without ground-truth labels.
+
+## Fraud coverage
+
+| Fraud type | Example signals | Default response |
+|---|---|---|
+| Refund abuse | Refund frequency, keep-item claims, time after delivery | Refund hold |
+| Brushing and fake GMV | Thin buyers, shared devices, instant reviews | Delist and GMV clawback |
+| Promotion abuse | New accounts, coupon stacking, device reuse | Coupon restriction |
+| Review manipulation | Rating bursts, templated text, unverified reviews | Review takedown |
+| Seller collusion | Shared devices, payouts, warehouses, network components | Network hold |
+| Account takeover | New device, new destination, geographic hop, velocity | Step-up authentication |
+| Payment fraud | Authorization failures, AVS/BIN mismatch | Payment block |
+| Affiliate fraud | Self-purchase loops, click concentration | Commission clawback |
+| Livestream fraud | Inorganic traffic spikes and brushing overlap | Ranking suppression |
 
 ## Architecture
 
 ```mermaid
-flowchart LR
-    A[Synthetic marketplace] --> B[DuckDB warehouse]
+flowchart TD
+    A[Marketplace events] --> B[DuckDB warehouse]
     B --> C[SQL feature marts]
-    C --> D[YAML rule pack]
-    D --> E[Hits + enforcement ladder]
-    E --> F[Investigation queue]
-    E --> G[Precision / recall vs labels]
-    G --> H[Policy score sandbox]
-    F --> I[Analyst memo / LLM prompt]
-    B --> J[Streamlit console]
+    C --> D[Versioned YAML rules]
+    D --> E[Risk hits and cases]
+    E --> F[Investigation briefs]
+    E --> G[Precision, recall, and GMV metrics]
+    G --> H[Policy threshold sandbox]
+    E --> I[Streamlit analyst console]
+    J[CSV or JSON upload] --> K[Browser-only analysis]
+    L[Cloudflare Worker API] --> M[Live dashboard]
+    K --> M
 ```
 
-Markets in `configs/markets.yaml` carry different risk priors (US/UK lean user-experience; ID/TH lean scaled prevention) — the same tension GNE has between trust and growth.
+## Job-description alignment
 
-## Quick start
+| Risk Control responsibility | Project implementation |
+|---|---|
+| Large-scale quantitative analysis | DuckDB warehouse, SQL feature marts, seeded marketplace simulator |
+| Investigate fraudulent activity | Prioritized case packets with evidence and related entity features |
+| Develop anti-fraud rules | Versioned `configs/rules.yaml` rule pack with rationales and actions |
+| Build pipelines and monitoring | Buyer, seller, creator, order, and KPI SQL pipelines |
+| Capture emerging risks | Nine marketplace fraud typologies and configurable market policies |
+| Design enforcement workflows | Severity-based enforcement ladder, SLAs, UX costs, and guardrails |
+| Balance fraud prevention and UX | Policy threshold sandbox and false-positive-aware evaluation |
+| Communicate with stakeholders | Deterministic analyst briefs, RCA, SOP, and investigation playbook |
+
+## Rule design
+
+Rules are SQL-driven and explainable rather than hidden behind a single black-box prediction. Each rule specifies:
+
+- Rule identifier and fraud typology
+- Entity type: buyer, seller, creator, order, or network
+- Severity and recommended action
+- Risk weight and rationale
+- SQL selection logic
+- Evidence returned to investigators
+
+Examples include `REFUND_SERIAL_28D`, `BRUSH_NEW_BUYER_REVIEW`, `ATO_GEO_DEVICE_VELOCITY`, `NETWORK_SHARED_DEVICE`, and `AFFILIATE_SELF_LOOP`.
+
+## Run the Python analytics platform
 
 ```bash
+git clone https://github.com/MadanMohan0537/TikTok-Shop-Risk-Intelligence.git
+cd TikTok-Shop-Risk-Intelligence
+
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 
 shop-risk run --demo
 shop-risk dashboard
 ```
 
-`run --demo` generates a smaller labeled marketplace, builds features, scores rules, prints holdout metrics, a policy curve, and the top investigation briefs.
-
 Useful commands:
 
 ```bash
-shop-risk generate --seed 42          # full-size synthetic window
-shop-risk features                    # rebuild buyer/seller/creator/order marts
-shop-risk score                       # execute configs/rules.yaml
-shop-risk evaluate                    # precision, recall, GMV on hit orders
-shop-risk policy                      # what if we only enforce score >= 0.7?
+shop-risk generate --seed 42
+shop-risk features
+shop-risk score
+shop-risk evaluate
+shop-risk policy
 shop-risk investigate --top 5
-shop-risk investigate --prompt        # LLM-ready case brief
+shop-risk investigate --prompt
 pytest -q
 ```
 
-## Rule pack
+## Run the Cloudflare application locally
 
-Rules are SQL over the feature mart, not a black-box score. Each row in `configs/rules.yaml` has a typology, severity, enforcement action, weight, rationale, and a query that returns `entity_id`, `score`, and `evidence`.
-
-Examples:
-
-- `REFUND_SERIAL_28D` — repeat keep-item refunds inside 36 hours of delivery
-- `BRUSH_NEW_BUYER_REVIEW` — thin buyers + instant five-star reviews
-- `ATO_GEO_DEVICE_VELOCITY` — trusted account, new device, far ship-to, compressed velocity
-- `NETWORK_SHARED_DEVICE` — mule-device / shared-payout shop components
-- `AFFILIATE_SELF_LOOP` — creator-device self-purchase + click concentration
-
-Enforcement is a ladder (`step_up_auth` → holds → blocks → network freeze) with an **UX cost** and SLA so the first-time legitimate return does not get the same treatment as a mule farm.
-
-## Investigation workflow
-
-`shop-risk investigate` collapses hits into a case packet: entity, market, evidence, related 28d features, recommended action, and the typology's UX guardrail. It writes a deterministic analyst memo (no API key required) and can emit the **same slots as an LLM prompt** so you can drop it into an agent.
-
-That is the preferred qualification — prompt contracts for case briefs, RCA, policy one-pagers, and ops SOPs live in `src/shop_risk/investigation/prompts.py`.
-
-## Metrics
-
-Synthetic labels are injected with the fraud cohorts. `shop-risk evaluate` reports precision / recall / F1 overall and by typology. Treat them as a **holdout for the rule pack**, not as production model performance.
-
-The Streamlit console also shows market GMV, refund rate, rule-hit mix, the investigation queue, and a score-threshold sandbox (precision vs recall vs volume).
-
-## Repo layout
-
-```
-configs/          typology, markets, rules, enforcement ladder
-sql/              DuckDB feature pipelines (buyer, seller, creator, order, KPIs)
-src/shop_risk/    simulator, warehouse, rules, investigation, CLI
-dashboards/       Streamlit analyst console
-docs/             SOP, playbook, worked RCA
-tests/            pytest against a seeded demo warehouse
+```bash
+npm install
+npm run check
+npm run dev
 ```
 
-## Design choices
+Open the local URL printed by Wrangler.
 
-- **SQL is the source of truth** for features and rules, matching how an analyst actually ships detection.
-- **False positives are first-class.** Every typology has a UX guardrail; US/UK configs bias toward experience.
-- **Labels never leave the `labels` table.** The dashboard and README do not pretend synthetic flags are production outcomes.
-- **No live LLM call in CI.** Prompts are versioned; briefs are deterministic so the pipeline stays reproducible.
-- **USDS-shaped compliance note:** ATO and stolen-instrument paths prefer step-up / payment block over silent account seizure.
+Worker endpoints:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /health` | Runtime health check |
+| `GET /api/overview` | Marketplace risk KPIs |
+| `GET /api/cases` | Prioritized investigation queue |
+| `GET /api/rules` | Cloudflare rule catalog |
+| `GET /api/policy?threshold=70` | Enforcement-threshold simulation |
+| `POST /api/score` | Explainable order risk evaluation |
+
+## Deploy to Cloudflare
+
+Cloudflare Workers build configuration:
+
+```text
+Production branch: main
+Build command: npm install
+Deploy command: npm run deploy
+Root directory: leave blank
+```
+
+Do not enter `/` in the root-directory field.
+
+Manual deployment:
+
+```bash
+npm install
+npm run deploy
+```
+
+## Repository structure
+
+```text
+configs/          Fraud typologies, markets, rules, enforcement ladder
+sql/              Buyer, seller, creator, order, and KPI feature pipelines
+src/shop_risk/    Simulation, warehouse, rule engine, monitoring, CLI
+dashboards/       Local Streamlit analyst console
+docs/             SOP, investigation playbook, metrics, worked RCA
+tests/            Seeded unit and integration tests
+worker/           Cloudflare Worker API
+public/           Cloudflare-hosted analyst dashboard
+```
+
+## Evaluation and responsible use
+
+- Labels exist only in the synthetic evaluation dataset.
+- Reported metrics are portfolio demonstration results, not production performance.
+- Every typology includes a user-experience guardrail.
+- The project prefers step-up authentication or review when a hard block would create excessive legitimate-user friction.
+- Uploaded datasets should exclude unnecessary personal or sensitive information.
+- The application is a decision-support prototype and must not be used to attack or target a real marketplace.
 
 ## Testing
 
 ```bash
 pytest -q
+npm run check
 ```
 
-CI runs the same suite on 3.11 (`.github/workflows/ci.yml`).
+GitHub Actions runs the Python test suite on every push and pull request.
 
 ## Disclaimer
 
-This project uses a fictional marketplace and synthetic abuse patterns inspired by publicly discussed e-commerce fraud (brushing, friendly fraud, ATO, affiliate self-dealing). It is not a TikTok internal system, does not use TikTok data, and is not suitable for attacking real platforms.
+This project uses a fictional marketplace and synthetic abuse patterns inspired by commonly discussed e-commerce risks. It does not use TikTok internal data and is not an official TikTok or ByteDance product.
 
-
-## Cloudflare deployment
-
-The repository includes a Cloudflare-native dashboard and Worker API alongside the full Python analytics project:
-
-- `public/index.html` — deployable analyst dashboard
-- `worker/index.js` — risk telemetry, cases, scoring, rules, and policy APIs
-- `wrangler.jsonc` — Worker and static-assets configuration
-- `package.json` — deterministic Cloudflare build commands
-
-Cloudflare Workers build settings:
-
-```text
-Build command: npm install
-Deploy command: npm run deploy
-Root directory: leave blank
-Production branch: main
-```
-
-Do not set the root directory to `/`. The Python/Streamlit console remains available locally, while the Cloudflare deployment uses the edge-compatible JavaScript dashboard.
-
-
-## Analyze your own data
-
-The Cloudflare dashboard accepts CSV and JSON files directly in the browser. Files are not posted to the Worker, persisted, logged, or transmitted to an external service.
-
-Supported JSON shapes are a top-level array or an object containing `records`, `orders`, `cases`, or `data`. Common columns are normalized automatically:
-
-```text
-order_id, entity_id, buyer_id, seller_id, market, amount, gmv,
-risk_score, fraud_type, typology, status, action,
-refund_rate_28d, refunds_28d, shared_device_peers,
-new_device, distance_miles, velocity_1h, auth_fail_1h, avs_mismatch
-```
-
-If `risk_score` is absent, the browser applies transparent portfolio rules to the available signals. The dashboard limits analysis to 5 MB and 10,000 rows. A downloadable CSV template is included in the interface.
