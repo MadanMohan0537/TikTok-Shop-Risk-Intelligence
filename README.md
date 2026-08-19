@@ -148,3 +148,19 @@ Production branch: main
 ```
 
 Do not set the root directory to `/`. The Python/Streamlit console remains available locally, while the Cloudflare deployment uses the edge-compatible JavaScript dashboard.
+
+
+## Analyze your own data
+
+The Cloudflare dashboard accepts CSV and JSON files directly in the browser. Files are not posted to the Worker, persisted, logged, or transmitted to an external service.
+
+Supported JSON shapes are a top-level array or an object containing `records`, `orders`, `cases`, or `data`. Common columns are normalized automatically:
+
+```text
+order_id, entity_id, buyer_id, seller_id, market, amount, gmv,
+risk_score, fraud_type, typology, status, action,
+refund_rate_28d, refunds_28d, shared_device_peers,
+new_device, distance_miles, velocity_1h, auth_fail_1h, avs_mismatch
+```
+
+If `risk_score` is absent, the browser applies transparent portfolio rules to the available signals. The dashboard limits analysis to 5 MB and 10,000 rows. A downloadable CSV template is included in the interface.
