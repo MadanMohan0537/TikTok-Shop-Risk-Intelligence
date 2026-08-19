@@ -1,0 +1,2 @@
+"""ShopGuard risk intelligence application."""
+
