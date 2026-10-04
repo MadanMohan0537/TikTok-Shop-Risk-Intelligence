@@ -17,6 +17,14 @@
 
 ---
 
+## Evaluate the prototype with its data provenance intact
+
+This repository demonstrates marketplace risk analysis with synthetic data and configurable rules. It is not an official TikTok product and does not establish access to real seller, order or enforcement records.
+
+Use the [CLI](src/shop_risk/cli.py) for the Python pipeline and [Worker](worker/index.js) for the browser dashboard. Review the rule definitions in [configs](configs/) before interpreting a flag. Rule thresholds are hypotheses to validate against labeled, permitted data; a dashboard flag is not a finding of fraud or a platform enforcement decision.
+
+Preserve the input source, rule version and run configuration with exported results. For interface changes run `npm run check`; use the Python tests for pipeline behavior as described below.
+
 ## Overview
 
 Shop Risk Intelligence is an end-to-end portfolio project designed around the work of an e-commerce Risk Control and Anti-Fraud team. It turns marketplace activity into SQL features, transparent rule hits, investigation cases, enforcement recommendations, monitoring metrics, and policy-impact simulations.
@@ -227,4 +235,3 @@ GitHub Actions runs the Python test suite on every push and pull request.
 ## Disclaimer
 
 This project uses a fictional marketplace and synthetic abuse patterns inspired by commonly discussed e-commerce risks. It does not use TikTok internal data and is not an official TikTok or ByteDance product.
-
